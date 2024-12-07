@@ -1,5 +1,6 @@
 {
 	"metrics": {
+		"namespace": "CloudWatchAgent",
 		"aggregation_dimensions": [
 			[
 				"InstanceId"
