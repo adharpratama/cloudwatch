@@ -1,14 +1,11 @@
 {
 	"metrics": {
-		"namespace": "CloudWatchAgent",
-		"aggregation_dimensions": {
-			
+	
+		"aggregation_dimensions": [
+			[
 				"InstanceId"
-			
-		},
-		"append_dimensions": {
-			"InstanceId": "${aws:InstanceId}"
-		},
+			]
+		],
 		"metrics_collected": {
 			"LogicalDisk": {
 				"measurement": [
@@ -28,3 +25,53 @@
 			"Paging File": {
 				"measurement": [
 					"% Usage"
+				],
+				"metrics_collection_interval": 60,
+				"resources": [
+					"*"
+				]
+			},
+			"PhysicalDisk": {
+				"measurement": [
+					"% Disk Time",
+					"Disk Write Bytes/sec",
+					"Disk Read Bytes/sec",
+					"Disk Writes/sec",
+					"Disk Reads/sec"
+				],
+				"metrics_collection_interval": 60,
+				"resources": [
+					"*"
+				]
+			},
+			"Processor": {
+				"measurement": [
+					"% User Time",
+					"% Idle Time",
+					"% Interrupt Time"
+				],
+				"metrics_collection_interval": 60,
+				"resources": [
+					"_Total"
+				]
+			},
+			"TCPv4": {
+				"measurement": [
+					"Connections Established"
+				],
+				"metrics_collection_interval": 60
+			},
+			"TCPv6": {
+				"measurement": [
+					"Connections Established"
+				],
+				"metrics_collection_interval": 60
+			},
+			"statsd": {
+				"metrics_aggregation_interval": 60,
+				"metrics_collection_interval": 60,
+				"service_address": ":8125"
+			}
+		}
+	}
+}
