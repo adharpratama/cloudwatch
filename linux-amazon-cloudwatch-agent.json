@@ -3,7 +3,7 @@
         "metrics_collection_interval": 60
     },
     "metrics": {
-        "namespace": "CWAgent",
+        "namespace": "CloudWatchAgent",
         "append_dimensions": {
             "InstanceId": "${aws:InstanceId}"
         },
