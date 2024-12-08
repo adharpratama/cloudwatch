@@ -3,7 +3,7 @@
 		"namespace": "CloudWatchAgent",
 		"aggregation_dimensions": [
 			[
-				"InstanceId": "${aws:InstanceId}",
+				"InstanceId": "${aws:InstanceId}"
 			]
 		],
 		"metrics_collected": {
