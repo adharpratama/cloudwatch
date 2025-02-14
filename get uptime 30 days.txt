@@ -1,0 +1,66 @@
+import boto3
+import pandas as pd
+from datetime import datetime, timedelta
+
+# AWS Configuration
+region = "us-east-1"  # Change this to your AWS region
+
+# Initialize AWS Clients
+ec2_client = boto3.client("ec2", region_name=region)
+cloudwatch = boto3.client("cloudwatch", region_name=region)
+
+# Define Time Range (Last 30 Days)
+end_time = datetime.utcnow()
+start_time = end_time - timedelta(days=30)  # Check last 30 days
+
+# Get All Running EC2 Instances
+instances = ec2_client.describe_instances(
+    Filters=[{"Name": "instance-state-name", "Values": ["running"]}]
+)
+
+instance_data = []
+
+# Loop Through Each Instance
+for reservation in instances["Reservations"]:
+    for instance in reservation["Instances"]:
+        instance_id = instance["InstanceId"]
+        instance_name = next(
+            (tag["Value"] for tag in instance.get("Tags", []) if tag["Key"] == "Name"), "N/A"
+        )
+
+        # Fetch CloudWatch Metric Data
+        response = cloudwatch.get_metric_statistics(
+            Namespace="AWS/EC2",
+            MetricName="StatusCheckFailed",
+            Dimensions=[{"Name": "InstanceId", "Value": instance_id}],
+            StartTime=start_time,
+            EndTime=end_time,
+            Period=3600,  # 1-hourcintervals
+            Statistics=["Sum"]
+        )
+
+        # Process Data
+        total_intervals = 30 * 24  # 30 days * 24 hours
+        downtime_intervals = sum(1 for point in response["Datapoints"] if point["Sum"] > 0)
+
+        # Calculate Uptime Percentage
+        uptime_percentage = 100 * (1 - (downtime_intervals / total_intervals)) if total_intervals > 0 else 100
+
+        # Append Data
+        instance_data.append({
+            "Instance ID": instance_id,
+            "Instance Name": instance_name,
+            "Region": region,
+            "Total Intervals": total_intervals,
+            "Downtime Intervals": downtime_intervals,
+            "Uptime Percentage": f"{uptime_percentage:.2f}%"
+        })
+
+# Convert Data to DataFrame
+df = pd.DataFrame(instance_data)
+
+# Save to Excel
+file_name = "EC2_Uptime_Report_30Days.xlsx"
+df.to_excel(file_name, index=False)
+
+print(f"✅ Report generated: {file_name}")

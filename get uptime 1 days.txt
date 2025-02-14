@@ -1,0 +1,70 @@
+import boto3
+from datetime import datetime, timedelta
+import pandas as pd
+
+# Initialize AWS clients
+ec2_client = boto3.client("ec2", region_name="us-east-1")  # Change as needed
+cloudwatch_client = boto3.client("cloudwatch", region_name="us-east-1")  # Change as needed
+
+# Get all running instances
+def get_all_instances():
+    response = ec2_client.describe_instances(Filters=[{"Name": "instance-state-name", "Values": ["running"]}])
+    instances = []
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            instances.append({
+                "InstanceId": instance["InstanceId"],
+                "InstanceName": next((tag["Value"] for tag in instance.get("Tags", []) if tag["Key"] == "Name"), "Unknown"),
+                "Region": instance["Placement"]["AvailabilityZone"][:-1],  # Extract region
+            })
+    return instances
+
+# Fetch uptime data for an instance
+def get_instance_uptime(instance_id):
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(days=1)
+
+    response = cloudwatch_client.get_metric_statistics(
+        Namespace="AWS/EC2",
+        MetricName="StatusCheckFailed",
+        Dimensions=[{"Name": "InstanceId", "Value": instance_id}],
+        StartTime=start_time,
+        EndTime=end_time,
+        Period=60,  # 1-minute intervals
+        Statistics=["Sum"]
+    )
+
+    total_minutes = 24 * 60  # 1440 minutes
+    downtime_minutes = sum(dp["Sum"] for dp in response.get("Datapoints", []))
+    uptime_minutes = total_minutes - downtime_minutes
+
+    uptime_percentage = (uptime_minutes / total_minutes) * 100 if total_minutes > 0 else 100
+    downtime_percentage = 100 - uptime_percentage
+
+    return uptime_minutes, downtime_minutes, f"{uptime_percentage:.2f}%", f"{downtime_percentage:.2f}%"
+
+# Main script execution
+instances = get_all_instances()
+data = []
+
+for instance in instances:
+    uptime_minutes, downtime_minutes, uptime_percentage, downtime_percentage = get_instance_uptime(instance["InstanceId"])
+    data.append({
+        "Instance ID": instance["InstanceId"],
+        "Instance Name": instance["InstanceName"],
+        "Region": instance["Region"],
+        "Total Minutes": 1440,
+        "Uptime Minutes": uptime_minutes,
+        "Downtime Minutes": downtime_minutes,
+        "Uptime Percentage": uptime_percentage,
+        "Downtime Percentage": downtime_percentage
+    })
+
+# Convert to DataFrame
+df = pd.DataFrame(data)
+
+# Save to Excel
+excel_filename = "ec2_uptime_report.xlsx"
+df.to_excel(excel_filename, index=False)
+
+print(f"EC2 uptime report saved as {excel_filename}")

@@ -1,0 +1,82 @@
+import boto3
+import pandas as pd
+from datetime import datetime, timedelta
+
+# Initialize AWS Clients
+cloudwatch = boto3.client('cloudwatch', region_name='us-east-1')  # Change region as needed
+ec2 = boto3.client('ec2', region_name='us-east-1')
+
+# Define time range (last 30 days)
+end_time = datetime.utcnow()
+start_time = end_time - timedelta(days=30)
+
+# Get all running EC2 instances
+def get_all_instances():
+    instances = []
+    response = ec2.describe_instances()
+    for reservation in response['Reservations']:
+        for instance in reservation['Instances']:
+            if instance['State']['Name'] == 'running':  # Only active instances
+                instances.append({
+                    "Instance ID": instance['InstanceId'],
+                    "Instance Name": next((tag['Value'] for tag in instance.get('Tags', []) if tag['Key'] == 'Name'), "Unnamed Instance")
+                })
+    return instances
+
+# Function to get metric data from CloudWatch
+def get_metric(namespace, metric_name, dimension_name, dimension_value, statistic="Average"):
+    response = cloudwatch.get_metric_statistics(cx
+        Namespace=namespace,
+        MetricName=metric_name,
+        Dimensions=[{'Name': dimension_name, 'Value': dimension_value}],
+        StartTime=start_time,
+        EndTime=end_time,
+        Period=86400,  # 1-day period (for daily data points)
+        Statistics=[statistic],
+    )
+    
+    return {dp['Timestamp'].strftime("%Y-%m-%d"): round(dp[statistic], 2) for dp in response.get('Datapoints', [])}
+
+# Fetch instance list
+instances = get_all_instances()
+
+# Process each instance separately
+for instance in instances:
+    instance_id = instance["Instance ID"]
+    instance_name = instance["Instance Name"]
+
+    # Fetch metrics per day
+    cpu_usage = get_metric("AWS/EC2", "CPUUtilization", "InstanceId", instance_id)
+    memory_usage = get_metric("CWAgent", "MemoryUtilization", "InstanceId", instance_id)
+    disk_usage = get_metric("CWAgent", "DiskUsedPercent", "InstanceId", instance_id)
+    network_in = get_metric("AWS/EC2", "NetworkIn", "InstanceId", instance_id)
+    network_out = get_metric("AWS/EC2", "NetworkOut", "InstanceId", instance_id)
+    disk_read_ops = get_metric("AWS/EC2", "DiskReadOps", "InstanceId", instance_id)
+    disk_write_ops = get_metric("AWS/EC2", "DiskWriteOps", "InstanceId", instance_id)
+
+    # Organize data by day
+    metrics_data = []
+    for date in cpu_usage.keys():
+        metrics_data.append({
+            "Date": date,
+            "Instance ID": instance_id,
+            "Instance Name": instance_name,
+            "CPU Usage (%)": cpu_usage.get(date, None),
+            "Memory Usage (%)": memory_usage.get(date, None),
+            "Disk Usage (%)": disk_usage.get(date, None),
+            "Network In (Bytes/sec)": network_in.get(date, None),
+            "Network Out (Bytes/sec)": network_out.get(date, None),
+            "Disk Read IOPS": disk_read_ops.get(date, None),
+            "Disk Write IOPS": disk_write_ops.get(date, None),
+        })
+
+    # Convert to DataFrame
+    df_instance = pd.DataFrame(metrics_data)
+
+    # Save to separate Excel file per instance
+    excel_filename = f"{instance_name}_{instance_id}_metrics_last_30_days.xlsx".replace(" ", "_")
+    df_instance.to_excel(excel_filename, index=False)
+
+    print(f"Saved: {excel_filename}")
+
+print("All instance reports generated successfully.")

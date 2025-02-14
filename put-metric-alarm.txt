@@ -1,0 +1,10 @@
+aws cloudwatch put-metric-alarm \
+    --alarm-name "HighCPU-AllEC2Instances" \
+    --namespace "AWS/EC2" \
+    --metric-name "CPUUtilization" \
+    --statistic Average \
+    --period 300 \
+    --evaluation-periods 2 \
+    --threshold 80 \
+    --comparison-operator GreaterThanThreshold \
+    --alarm-actions arn:aws:sns:us-east-1:123456789012:MySNSTopic
